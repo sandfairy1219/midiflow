@@ -40,6 +40,19 @@ class Track(BaseModel):
     pan: float = 0.0
 
 
+class Note(BaseModel):
+    pitch: int
+    start: float
+    end: float
+    velocity: int
+    instrument: int
+
+
+class MidiUpdateRequest(BaseModel):
+    notes: List[Note]
+    tempo: Optional[int] = 120
+
+
 class Project(BaseModel):
     project_id: str
     name: str

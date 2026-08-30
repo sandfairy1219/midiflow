@@ -1,8 +1,10 @@
 import { useState, useEffect } from "react";
 import type { Project } from "./types";
-import { createProject, generateAudio, getJob, getProject, analyzeProject } from "./api";
+import { createProject, generateAudio, getJob, getProject, analyzeProject, saveMidi } from "./api";
 import { PromptPanel } from "./components/PromptPanel";
 import { TrackList } from "./components/TrackList";
+import { PianoRoll } from "./components/PianoRoll";
+import type { Note } from "./types";
 
 export function App() {
   const [project, setProject] = useState<Project | null>(null);
@@ -67,6 +69,24 @@ export function App() {
   }
 
   const generatedFilename = project?.generated_audio?.split("\\").pop()?.split("/").pop();
+  const notes = project?.midi_data?.notes || [];
+  const [editedNotes, setEditedNotes] = useState<Note[]>(notes);
+
+  useEffect(() => {
+    setEditedNotes(notes);
+  }, [notes]);
+
+  async function handleSaveMidi() {
+    if (!project) return;
+    setStatus("Saving MIDI...");
+    try {
+      const updated = await saveMidi(project.project_id, editedNotes);
+      setProject(updated);
+      setStatus("MIDI saved.");
+    } catch (e: unknown) {
+      setStatus(e instanceof Error ? e.message : String(e));
+    }
+  }
 
   return (
     <div style={{ maxWidth: 900, margin: "0 auto", padding: 24, fontFamily: "sans-serif" }}>
@@ -84,6 +104,14 @@ export function App() {
               {isAnalyzing ? "Analyzing..." : "Analyze (Extract Stems + MIDI)"}
             </button>
           </div>
+        </div>
+      )}
+
+      {editedNotes.length > 0 && (
+        <div style={{ padding: 16, border: "1px solid #ccc", borderRadius: 8, marginBottom: 16 }}>
+          <h3>Piano Roll Editor</h3>
+          <PianoRoll notes={editedNotes} onChange={setEditedNotes} />
+          <button onClick={handleSaveMidi}>Save Edited MIDI</button>
         </div>
       )}
 

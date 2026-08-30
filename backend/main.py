@@ -8,7 +8,7 @@ from typing import Optional
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 
-from backend.schemas import GenerateRequest, GenerationJob, GenerationStatus, Project, Track
+from backend.schemas import GenerateRequest, GenerationJob, GenerationStatus, Project, Track, MidiUpdateRequest
 from backend.store import (
     create_project,
     get_project,
@@ -19,6 +19,7 @@ from backend.store import (
 )
 from backend.pipelines.generate import generate_music
 from backend.pipelines.analyze import analyze_audio
+from backend.pipelines.midi_utils import notes_to_midi
 
 
 @asynccontextmanager
@@ -159,6 +160,33 @@ def serve_audio(project_id: str, filename: str):
         raise HTTPException(status_code=404, detail="File not found")
     from fastapi.responses import FileResponse
     return FileResponse(file_path)
+
+
+@app.post("/projects/{project_id}/midi", response_model=Project)
+def update_midi(project_id: str, request: MidiUpdateRequest):
+    project = get_project(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    pdir = ensure_project_dir(project_id)
+    midi_path = os.path.join(pdir, "edited_melody.mid")
+    notes_to_midi([n.model_dump() for n in request.notes], midi_path, request.tempo)
+
+    # Update or add MIDI track
+    existing = [t for t in project.tracks if t.track_id == f"{project_id}_midi_edited"]
+    if existing:
+        existing[0].path = midi_path
+    else:
+        project.tracks.append(Track(
+            track_id=f"{project_id}_midi_edited",
+            name="Edited Melody",
+            type="midi",
+            path=midi_path,
+        ))
+
+    project.midi_data = {"notes": [n.model_dump() for n in request.notes]}
+    project.updated_at = datetime.now()
+    return project
 
 
 if __name__ == "__main__":

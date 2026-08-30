@@ -1,4 +1,4 @@
-import type { Project, GenerationJob } from "./types";
+import type { Project, GenerationJob, Note } from "./types";
 
 const API_BASE = "http://127.0.0.1:8000";
 
@@ -33,6 +33,16 @@ export async function getJob(jobId: string): Promise<GenerationJob> {
 export async function analyzeProject(projectId: string): Promise<Project> {
   const res = await fetch(`${API_BASE}/projects/${projectId}/analyze`, { method: "POST" });
   if (!res.ok) throw new Error("Failed to start analysis");
+  return res.json();
+}
+
+export async function saveMidi(projectId: string, notes: Note[], tempo: number = 120): Promise<Project> {
+  const res = await fetch(`${API_BASE}/projects/${projectId}/midi`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ notes, tempo }),
+  });
+  if (!res.ok) throw new Error("Failed to save MIDI");
   return res.json();
 }
 
