@@ -1,3 +1,4 @@
+import asyncio
 import os
 import uuid
 from contextlib import asynccontextmanager
@@ -7,7 +8,7 @@ from typing import Optional
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 
-from backend.schemas import GenerateRequest, GenerationJob, GenerationStatus, Project
+from backend.schemas import GenerateRequest, GenerationJob, GenerationStatus, Project, Track
 from backend.store import (
     create_project,
     get_project,
@@ -17,6 +18,7 @@ from backend.store import (
     ensure_project_dir,
 )
 from backend.pipelines.generate import generate_music
+from backend.pipelines.analyze import analyze_audio
 
 
 @asynccontextmanager
@@ -57,6 +59,52 @@ def read_project(project_id: str):
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
     return project
+
+
+@app.post("/projects/{project_id}/analyze", response_model=Project)
+def analyze_project(project_id: str, background_tasks: BackgroundTasks):
+    project = get_project(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    if not project.generated_audio or not os.path.exists(project.generated_audio):
+        raise HTTPException(status_code=400, detail="No generated audio found for this project")
+
+    background_tasks.add_task(_run_analysis, project_id, project.generated_audio)
+    return project
+
+
+async def _run_analysis(project_id: str, audio_path: str):
+    try:
+        pdir = ensure_project_dir(project_id)
+        result = await asyncio.to_thread(analyze_audio, audio_path, pdir)
+
+        project = get_project(project_id)
+        if not project:
+            return
+
+        new_tracks = []
+        for stem_name, stem_path in result["stems"].items():
+            new_tracks.append(Track(
+                track_id=f"{project_id}_stem_{stem_name}",
+                name=stem_name.capitalize(),
+                type="audio",
+                path=stem_path,
+            ))
+
+        new_tracks.append(Track(
+            track_id=f"{project_id}_midi_melody",
+            name="Extracted Melody",
+            type="midi",
+            path=result["midi_path"],
+        ))
+
+        project.tracks = new_tracks
+        project.midi_data = {"notes": result["notes"]}
+        project.updated_at = datetime.now()
+    except Exception as e:
+        import traceback
+        print(f"Analysis failed for {project_id}: {e}")
+        traceback.print_exc()
 
 
 @app.post("/generate", response_model=GenerationJob)

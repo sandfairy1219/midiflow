@@ -18,6 +18,8 @@ server.log
 *.mp3
 *.mid
 *.midi
+test_stems/
+test_analyze_out/
 
 # Frontend (future)
 node_modules/
