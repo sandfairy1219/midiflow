@@ -51,16 +51,58 @@ def generate_music(
     return output_path
 
 
+def notes_to_melody_audio(notes, sampling_rate: int = 32000, tempo: int = 120) -> "np.ndarray":
+    """
+    Convert note dicts to a simple sine-wave melody audio for MusicGen conditioning.
+    """
+    import numpy as np
+    import pretty_midi
+
+    if not notes:
+        max_end = 5.0
+    else:
+        max_end = max(n["end"] for n in notes)
+
+    # Add a little tail silence
+    duration = max_end + 1.0
+    samples = int(duration * sampling_rate)
+    audio = np.zeros(samples, dtype=np.float32)
+
+    for note in notes:
+        freq = pretty_midi.note_number_to_hz(note["pitch"])
+        start_sample = int(note["start"] * sampling_rate)
+        end_sample = min(int(note["end"] * sampling_rate), samples)
+        length = max(0, end_sample - start_sample)
+        if length == 0:
+            continue
+        t = np.arange(length) / sampling_rate
+        # Gentle attack/release envelope
+        envelope = np.ones(length, dtype=np.float32)
+        attack = min(500, length // 4)
+        release = min(500, length // 4)
+        envelope[:attack] = np.linspace(0, 1, attack)
+        envelope[-release:] = np.linspace(1, 0, release)
+        wave = 0.2 * np.sin(2 * np.pi * freq * t) * envelope
+        audio[start_sample:end_sample] += wave
+
+    # Normalize
+    peak = np.max(np.abs(audio))
+    if peak > 0:
+        audio = audio / peak * 0.5
+    return audio
+
+
 def generate_from_melody(
     prompt: str,
-    melody_path: str,
+    melody_input,
     output_path: str,
     duration_seconds: float = 10.0,
     model_name: str = "facebook/musicgen-small",
+    is_notes: bool = False,
 ) -> str:
     """
-    Generate audio conditioned on a melody audio file.
-    This is the core 'edit -> regenerate' function.
+    Generate audio conditioned on a melody.
+    melody_input can be a file path (str) or a list of note dicts if is_notes=True.
     """
     import librosa
     import numpy as np
@@ -68,14 +110,17 @@ def generate_from_melody(
     model, processor = get_model_and_processor(model_name)
     device = next(model.parameters()).device
 
-    # Load melody and resample to 32kHz (MusicGen expects this)
     target_sr = 32000
-    melody, sr = librosa.load(melody_path, sr=target_sr, mono=True)
-    melody = melody[: int(duration_seconds * target_sr)]
-    melody = np.expand_dims(melody, axis=0)  # (1, samples)
+    if is_notes:
+        melody_audio = notes_to_melody_audio(melody_input, sampling_rate=target_sr)
+    else:
+        melody_audio, _ = librosa.load(melody_input, sr=target_sr, mono=True)
+
+    melody_audio = melody_audio[: int(duration_seconds * target_sr)]
+    # Pass 1D array; processor handles batching internally
 
     inputs = processor(
-        audio=melody,
+        audio=melody_audio,
         text=[prompt],
         sampling_rate=target_sr,
         return_tensors="pt",

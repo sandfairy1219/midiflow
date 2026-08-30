@@ -46,6 +46,16 @@ export async function saveMidi(projectId: string, notes: Note[], tempo: number =
   return res.json();
 }
 
+export async function regenerateAudio(projectId: string, prompt: string, durationSeconds: number): Promise<GenerationJob> {
+  const res = await fetch(`${API_BASE}/projects/${projectId}/regenerate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ prompt, duration_seconds: durationSeconds }),
+  });
+  if (!res.ok) throw new Error("Failed to start regeneration");
+  return res.json();
+}
+
 export function audioUrl(projectId: string, filename: string): string {
   return `${API_BASE}/audio/${projectId}/${filename}`;
 }

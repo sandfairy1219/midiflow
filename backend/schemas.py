@@ -53,6 +53,12 @@ class MidiUpdateRequest(BaseModel):
     tempo: Optional[int] = 120
 
 
+class RegenerateRequest(BaseModel):
+    prompt: str
+    duration_seconds: Optional[float] = 10.0
+    model_name: Optional[str] = "facebook/musicgen-small"
+
+
 class Project(BaseModel):
     project_id: str
     name: str

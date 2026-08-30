@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import type { Project } from "./types";
-import { createProject, generateAudio, getJob, getProject, analyzeProject, saveMidi } from "./api";
+import { createProject, generateAudio, getJob, getProject, analyzeProject, saveMidi, regenerateAudio } from "./api";
 import { PromptPanel } from "./components/PromptPanel";
 import { TrackList } from "./components/TrackList";
 import { PianoRoll } from "./components/PianoRoll";
@@ -71,6 +71,8 @@ export function App() {
   const generatedFilename = project?.generated_audio?.split("\\").pop()?.split("/").pop();
   const notes = project?.midi_data?.notes || [];
   const [editedNotes, setEditedNotes] = useState<Note[]>(notes);
+  const [regenPrompt, setRegenPrompt] = useState("rock remix, electric guitar and drums");
+  const [isRegenerating, setIsRegenerating] = useState(false);
 
   useEffect(() => {
     setEditedNotes(notes);
@@ -85,6 +87,34 @@ export function App() {
       setStatus("MIDI saved.");
     } catch (e: unknown) {
       setStatus(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  async function handleRegenerate() {
+    if (!project) return;
+    setIsRegenerating(true);
+    setStatus("Starting regeneration with melody...");
+    try {
+      const job = await regenerateAudio(project.project_id, regenPrompt, 10);
+      while (true) {
+        await new Promise((r) => setTimeout(r, 2000));
+        const updated = await getJob(job.job_id);
+        setStatus(`Regeneration ${job.job_id}: ${updated.status}`);
+        if (updated.status === "completed") {
+          const refreshed = await getProject(project.project_id);
+          setProject(refreshed);
+          setStatus("Regeneration completed.");
+          break;
+        }
+        if (updated.status === "failed") {
+          setStatus(`Regeneration failed: ${updated.error_message}`);
+          break;
+        }
+      }
+    } catch (e: unknown) {
+      setStatus(e instanceof Error ? e.message : String(e));
+    } finally {
+      setIsRegenerating(false);
     }
   }
 
@@ -111,7 +141,20 @@ export function App() {
         <div style={{ padding: 16, border: "1px solid #ccc", borderRadius: 8, marginBottom: 16 }}>
           <h3>Piano Roll Editor</h3>
           <PianoRoll notes={editedNotes} onChange={setEditedNotes} />
-          <button onClick={handleSaveMidi}>Save Edited MIDI</button>
+          <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+            <button onClick={handleSaveMidi}>Save Edited MIDI</button>
+          </div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <input
+              type="text"
+              value={regenPrompt}
+              onChange={(e) => setRegenPrompt(e.target.value)}
+              style={{ flex: 1, padding: 6 }}
+            />
+            <button onClick={handleRegenerate} disabled={isRegenerating}>
+              {isRegenerating ? "Regenerating..." : "Regenerate with Melody"}
+            </button>
+          </div>
         </div>
       )}
 

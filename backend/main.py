@@ -8,7 +8,7 @@ from typing import Optional
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 
-from backend.schemas import GenerateRequest, GenerationJob, GenerationStatus, Project, Track, MidiUpdateRequest
+from backend.schemas import GenerateRequest, GenerationJob, GenerationStatus, Project, Track, MidiUpdateRequest, RegenerateRequest
 from backend.store import (
     create_project,
     get_project,
@@ -17,7 +17,7 @@ from backend.store import (
     update_job_status,
     ensure_project_dir,
 )
-from backend.pipelines.generate import generate_music
+from backend.pipelines.generate import generate_music, generate_from_melody
 from backend.pipelines.analyze import analyze_audio
 from backend.pipelines.midi_utils import notes_to_midi
 
@@ -187,6 +187,54 @@ def update_midi(project_id: str, request: MidiUpdateRequest):
     project.midi_data = {"notes": [n.model_dump() for n in request.notes]}
     project.updated_at = datetime.now()
     return project
+
+
+@app.post("/projects/{project_id}/regenerate", response_model=GenerationJob)
+def regenerate_endpoint(project_id: str, request: RegenerateRequest, background_tasks: BackgroundTasks):
+    project = get_project(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    if not project.midi_data or not project.midi_data.get("notes"):
+        raise HTTPException(status_code=400, detail="No MIDI notes available for regeneration")
+
+    job = create_job(
+        prompt=request.prompt,
+        duration_seconds=request.duration_seconds or 10.0,
+        model_name=request.model_name or "facebook/musicgen-small",
+        project_id=project_id,
+    )
+
+    pdir = ensure_project_dir(project_id)
+    output_filename = f"regen_{job.job_id}.wav"
+    output_path = os.path.join(pdir, output_filename)
+
+    background_tasks.add_task(
+        _run_regeneration,
+        job.job_id,
+        request.prompt,
+        project.midi_data["notes"],
+        output_path,
+        request.duration_seconds or 10.0,
+        request.model_name or "facebook/musicgen-small",
+        project_id,
+    )
+    return job
+
+
+def _run_regeneration(job_id: str, prompt: str, notes: list, output_path: str, duration: float, model_name: str, project_id: str):
+    update_job_status(job_id, GenerationStatus.RUNNING)
+    try:
+        generate_from_melody(prompt, notes, output_path, duration, model_name, is_notes=True)
+        update_job_status(job_id, GenerationStatus.COMPLETED, output_path=output_path)
+
+        project = get_project(project_id)
+        if project:
+            project.generated_audio = output_path
+            project.updated_at = datetime.now()
+    except Exception as e:
+        import traceback
+        update_job_status(job_id, GenerationStatus.FAILED, error_message=str(e))
+        traceback.print_exc()
 
 
 if __name__ == "__main__":
