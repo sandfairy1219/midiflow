@@ -184,19 +184,21 @@ export function PianoRoll({ notes, onChange }: Props) {
   };
 
   return (
-    <div style={{ marginBottom: 16 }} onKeyDown={handleKeyDown} tabIndex={0}>
-      <canvas
-        ref={canvasRef}
-        width={width}
-        height={height}
-        style={{ border: "1px solid #999", cursor: "crosshair", display: "block" }}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
-        onDoubleClick={handleDoubleClick}
-      />
-      <p style={{ fontSize: 12, color: "#666", marginTop: 4 }}>
+    <div onKeyDown={handleKeyDown} tabIndex={0}>
+      <div className="piano-roll-container">
+        <canvas
+          ref={canvasRef}
+          width={width}
+          height={height}
+          style={{ cursor: "crosshair", display: "block" }}
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseUp}
+          onDoubleClick={handleDoubleClick}
+        />
+      </div>
+      <p className="piano-roll-hint">
         Click to select · Drag to move · Drag right edge to resize · Double-click empty area to add · Delete to remove
       </p>
     </div>

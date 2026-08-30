@@ -1,10 +1,18 @@
 import { useState, useEffect } from "react";
-import type { Project } from "./types";
-import { createProject, generateAudio, getJob, getProject, analyzeProject, saveMidi, regenerateAudio, exportProject } from "./api";
+import type { Project, Note } from "./types";
+import {
+  createProject,
+  generateAudio,
+  getJob,
+  getProject,
+  analyzeProject,
+  saveMidi,
+  regenerateAudio,
+  exportProject,
+} from "./api";
 import { PromptPanel } from "./components/PromptPanel";
 import { TrackList } from "./components/TrackList";
 import { PianoRoll } from "./components/PianoRoll";
-import type { Note } from "./types";
 
 export function App() {
   const [project, setProject] = useState<Project | null>(null);
@@ -13,7 +21,7 @@ export function App() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   useEffect(() => {
-    createProject("New Session").then(setProject).catch((e) => setStatus(e.message));
+    createProject("New Session").then(setProject).catch((e) => setStatus(e instanceof Error ? e.message : String(e)));
   }, []);
 
   async function handleGenerate(prompt: string, duration: number) {
@@ -140,18 +148,24 @@ export function App() {
   }
 
   return (
-    <div style={{ maxWidth: 900, margin: "0 auto", padding: 24, fontFamily: "sans-serif" }}>
-      <h1>MidiFlow</h1>
-      <p style={{ color: "#666" }}>{status}</p>
+    <div className="app">
+      <header className="app-header">
+        <h1>MidiFlow</h1>
+        <p className="status-bar">{status || "Ready"}</p>
+      </header>
 
       <PromptPanel onGenerate={handleGenerate} isGenerating={isGenerating} />
 
       {project?.generated_audio && generatedFilename && (
-        <div style={{ padding: 16, border: "1px solid #ccc", borderRadius: 8, marginBottom: 16 }}>
+        <div className="card">
           <h3>Generated Audio</h3>
-          <audio controls src={`http://127.0.0.1:8000/audio/${project.project_id}/${generatedFilename}`} style={{ width: "100%" }} />
-          <div style={{ marginTop: 8 }}>
-            <button onClick={handleAnalyze} disabled={isAnalyzing}>
+          <audio
+            controls
+            src={`http://127.0.0.1:8000/audio/${project.project_id}/${generatedFilename}`}
+            style={{ width: "100%" }}
+          />
+          <div style={{ marginTop: 12 }}>
+            <button onClick={handleAnalyze} disabled={isAnalyzing} className="secondary">
               {isAnalyzing ? "Analyzing..." : "Analyze (Extract Stems + MIDI)"}
             </button>
           </div>
@@ -159,18 +173,19 @@ export function App() {
       )}
 
       {editedNotes.length > 0 && (
-        <div style={{ padding: 16, border: "1px solid #ccc", borderRadius: 8, marginBottom: 16 }}>
+        <div className="card">
           <h3>Piano Roll Editor</h3>
           <PianoRoll notes={editedNotes} onChange={setEditedNotes} />
-          <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+          <div className="row wrap" style={{ marginBottom: 12 }}>
             <button onClick={handleSaveMidi}>Save Edited MIDI</button>
           </div>
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <div className="row wrap">
             <input
               type="text"
               value={regenPrompt}
               onChange={(e) => setRegenPrompt(e.target.value)}
-              style={{ flex: 1, padding: 6 }}
+              className="grow"
+              placeholder="Style prompt for regeneration..."
             />
             <button onClick={handleRegenerate} disabled={isRegenerating}>
               {isRegenerating ? "Regenerating..." : "Regenerate with Melody"}
@@ -180,7 +195,7 @@ export function App() {
       )}
 
       {project && (
-        <div style={{ padding: 16, border: "1px solid #ccc", borderRadius: 8, marginBottom: 16 }}>
+        <div className="card">
           <h3>Export</h3>
           <button onClick={handleExport} disabled={isExporting}>
             {isExporting ? "Exporting..." : "Download Final Mix"}

@@ -5,28 +5,38 @@ interface Props {
   isGenerating: boolean;
 }
 
+const MAX_DURATION = 240; // 4 minutes
+
 export function PromptPanel({ onGenerate, isGenerating }: Props) {
   const [prompt, setPrompt] = useState("lofi hip hop beat, piano and drums");
   const [duration, setDuration] = useState(10);
 
+  const formatTime = (seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${s.toString().padStart(2, "0")}`;
+  };
+
   return (
-    <div style={{ padding: 16, border: "1px solid #ccc", borderRadius: 8, marginBottom: 16 }}>
+    <div className="card prompt-panel">
       <h3>Generate Music</h3>
       <textarea
         value={prompt}
         onChange={(e) => setPrompt(e.target.value)}
         rows={3}
-        style={{ width: "100%", marginBottom: 8 }}
+        placeholder="Describe the music you want..."
       />
-      <div style={{ marginBottom: 8 }}>
-        <label>Duration: {duration}s </label>
+      <div className="duration-row">
+        <label>Duration</label>
         <input
           type="range"
           min={3}
-          max={30}
+          max={MAX_DURATION}
+          step={1}
           value={duration}
           onChange={(e) => setDuration(Number(e.target.value))}
         />
+        <span>{formatTime(duration)}</span>
       </div>
       <button onClick={() => onGenerate(prompt, duration)} disabled={isGenerating}>
         {isGenerating ? "Generating..." : "Generate"}
