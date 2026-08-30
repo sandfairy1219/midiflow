@@ -6,9 +6,10 @@ from datetime import datetime
 from typing import Optional
 
 from fastapi import FastAPI, HTTPException, BackgroundTasks
-from fastapi.middleware.cors import CORSMiddleware
 
 from backend.schemas import GenerateRequest, GenerationJob, GenerationStatus, Project, Track, MidiUpdateRequest, RegenerateRequest
+from fastapi.middleware.cors import CORSMiddleware
+
 from backend.store import (
     create_project,
     get_project,
@@ -20,6 +21,7 @@ from backend.store import (
 from backend.pipelines.generate import generate_music, generate_from_melody
 from backend.pipelines.analyze import analyze_audio
 from backend.pipelines.midi_utils import notes_to_midi
+from backend.pipelines.mix import mix_and_master
 
 
 @asynccontextmanager
@@ -235,6 +237,24 @@ def _run_regeneration(job_id: str, prompt: str, notes: list, output_path: str, d
         import traceback
         update_job_status(job_id, GenerationStatus.FAILED, error_message=str(e))
         traceback.print_exc()
+
+
+@app.post("/projects/{project_id}/export")
+def export_project(project_id: str):
+    project = get_project(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    pdir = ensure_project_dir(project_id)
+    output_path = os.path.join(pdir, "final_mix.wav")
+
+    try:
+        mix_and_master(project.tracks, output_path, fallback_audio_path=project.generated_audio)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    from fastapi.responses import FileResponse
+    return FileResponse(output_path, filename="final_mix.wav", media_type="audio/wav")
 
 
 if __name__ == "__main__":

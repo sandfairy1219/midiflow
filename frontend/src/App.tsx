@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import type { Project } from "./types";
-import { createProject, generateAudio, getJob, getProject, analyzeProject, saveMidi, regenerateAudio } from "./api";
+import { createProject, generateAudio, getJob, getProject, analyzeProject, saveMidi, regenerateAudio, exportProject } from "./api";
 import { PromptPanel } from "./components/PromptPanel";
 import { TrackList } from "./components/TrackList";
 import { PianoRoll } from "./components/PianoRoll";
@@ -73,6 +73,7 @@ export function App() {
   const [editedNotes, setEditedNotes] = useState<Note[]>(notes);
   const [regenPrompt, setRegenPrompt] = useState("rock remix, electric guitar and drums");
   const [isRegenerating, setIsRegenerating] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
 
   useEffect(() => {
     setEditedNotes(notes);
@@ -118,6 +119,26 @@ export function App() {
     }
   }
 
+  async function handleExport() {
+    if (!project) return;
+    setIsExporting(true);
+    setStatus("Exporting final mix...");
+    try {
+      const blob = await exportProject(project.project_id);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `midiflow_${project.project_id}_final.wav`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setStatus("Export completed.");
+    } catch (e: unknown) {
+      setStatus(e instanceof Error ? e.message : String(e));
+    } finally {
+      setIsExporting(false);
+    }
+  }
+
   return (
     <div style={{ maxWidth: 900, margin: "0 auto", padding: 24, fontFamily: "sans-serif" }}>
       <h1>MidiFlow</h1>
@@ -155,6 +176,15 @@ export function App() {
               {isRegenerating ? "Regenerating..." : "Regenerate with Melody"}
             </button>
           </div>
+        </div>
+      )}
+
+      {project && (
+        <div style={{ padding: 16, border: "1px solid #ccc", borderRadius: 8, marginBottom: 16 }}>
+          <h3>Export</h3>
+          <button onClick={handleExport} disabled={isExporting}>
+            {isExporting ? "Exporting..." : "Download Final Mix"}
+          </button>
         </div>
       )}
 

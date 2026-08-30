@@ -56,6 +56,12 @@ export async function regenerateAudio(projectId: string, prompt: string, duratio
   return res.json();
 }
 
+export async function exportProject(projectId: string): Promise<Blob> {
+  const res = await fetch(`${API_BASE}/projects/${projectId}/export`, { method: "POST" });
+  if (!res.ok) throw new Error("Failed to export project");
+  return res.blob();
+}
+
 export function audioUrl(projectId: string, filename: string): string {
   return `${API_BASE}/audio/${projectId}/${filename}`;
 }
